@@ -6,6 +6,23 @@ All notable changes to brooks-lint are documented here.
 
 ---
 
+## [1.2.1] - 2026-04-28
+
+Fix Codex CLI compatibility: skill descriptions exceeded the 1024-character
+limit enforced by Codex CLI's OpenAI function description spec. All six skill
+descriptions now measure 698–950 chars.
+
+### Fixed
+
+- **`skills/brooks-audit/SKILL.md`**, **`brooks-debt/SKILL.md`**,
+  **`brooks-health/SKILL.md`**, **`brooks-test/SKILL.md`** — removed verbose
+  keyword trigger lists ("Also triggers when user mentions: …") and proactive-use
+  hints ("Use this skill proactively when…") that pushed descriptions over the
+  limit. Core description, `Triggers when:`, and required `Do NOT trigger for:`
+  clauses are preserved.
+
+---
+
 ## [1.2.0] - 2026-04-24
 
 `brooks-sweep` pipeline rewritten from a single-pass unified scan into a sequential,
