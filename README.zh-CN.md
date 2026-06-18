@@ -432,6 +432,8 @@ $brooks-sweep                       # Codex CLI
 ```yaml
 version: 1
 
+strictness: balanced   # strict | balanced（默认）| legacy-friendly——对遗留代码更宽松的打分
+
 disable:
   - T5   # 跳过覆盖率指标检查——我们不强制覆盖率
 
@@ -451,6 +453,7 @@ ignore:
 
 | 设置 | 说明 |
 |---------|-------------|
+| `strictness` | 打分预设：`strict`、`balanced`（默认）或 `legacy-friendly`（更轻的扣分，并优先列出高杠杆修复项） |
 | `disable` | 要跳过的风险码（`R1`–`R6`、`T1`–`T6`） |
 | `severity` | 覆盖严重度等级（`critical` / `warning` / `suggestion`） |
 | `ignore` | 要排除的文件 glob 模式 |
@@ -544,6 +547,19 @@ jobs:
 完整模板见 [`docs/github-action-example.yml`](docs/github-action-example.yml)。
 
 该 Action 会把审查结果作为 PR 评论发布，并可在健康分跌破阈值时让检查失败。若仓库中提交了 `.brooks-lint-history.json`，评论还会包含趋势变化（如 "85 → 82（−3），近 3 次运行"）。
+
+**质量闸门与 Code Scanning。** 除 `fail-below` 外，该 Action 还提供：
+
+```yaml
+        with:
+          mode: review
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          fail-on: critical            # 出现任何 Critical 即失败（none | warning | critical）
+          fail-on-regression: true     # 健康分较上次运行下降则失败
+          sarif-file: brooks-lint.sarif  # 同时把诊断上传到 GitHub Code Scanning
+```
+
+`fail-on-regression` 读取 `.brooks-lint-history.json`，因此提交该文件即可强制"无新增回归"。设置 `sarif-file` 会让诊断直接显示在 PR 的 **Files changed** 标签页，并需要 job 具备 `security-events: write` 权限。
 
 **成本：** 每次 PR 运行约 $0.05–0.15，取决于 diff 大小和模型。建议仅在 `pull_request` 事件上运行。
 

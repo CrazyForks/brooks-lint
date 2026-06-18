@@ -436,6 +436,8 @@ Place a `.brooks-lint.yaml` in your project root to customize review behavior:
 ```yaml
 version: 1
 
+strictness: balanced   # strict | balanced (default) | legacy-friendly — softer scoring for legacy code
+
 disable:
   - T5   # skip coverage metrics check — we don't enforce coverage
 
@@ -455,6 +457,7 @@ All settings are optional — omit the file entirely for default behavior.
 
 | Setting | Description |
 |---------|-------------|
+| `strictness` | Scoring preset: `strict`, `balanced` (default), or `legacy-friendly` (lighter deductions, leads with top fixes) |
 | `disable` | Risk codes to skip (`R1`–`R6`, `T1`–`T6`) |
 | `severity` | Override severity tier (`critical` / `warning` / `suggestion`) |
 | `ignore` | Glob patterns for files to exclude |
@@ -548,6 +551,19 @@ jobs:
 See [`docs/github-action-example.yml`](docs/github-action-example.yml) for the full template.
 
 The action posts the review as a PR comment and optionally fails the check if the Health Score drops below a threshold. If `.brooks-lint-history.json` is committed to your repo, the comment also includes a trend delta (e.g., "85 → 82 (−3) over last 3 runs").
+
+**Quality gates and Code Scanning.** Beyond `fail-below`, the action exposes:
+
+```yaml
+        with:
+          mode: review
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          fail-on: critical            # fail on any Critical finding (none | warning | critical)
+          fail-on-regression: true     # fail if the Health Score dropped vs the last run
+          sarif-file: brooks-lint.sarif  # also upload findings to GitHub Code Scanning
+```
+
+`fail-on-regression` reads `.brooks-lint-history.json`, so commit that file to enforce "no new regressions". Setting `sarif-file` makes findings appear inline on the PR's **Files changed** tab and requires `security-events: write` permission on the job.
 
 **Cost:** ~$0.05–0.15 per PR run depending on diff size and model. Recommend running on `pull_request` events only.
 
