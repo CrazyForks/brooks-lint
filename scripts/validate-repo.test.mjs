@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
@@ -26,6 +26,7 @@ import { extractRiskCodes, classify } from "./eval-utils.mjs";
 import { parseFindings, countFindings, extractLocation } from "./report-parse.mjs";
 import { reportToSarif } from "./sarif.mjs";
 import { severityBreached, isRegression } from "./ci-gate.mjs";
+import { summarize } from "./benchmark.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -758,6 +759,48 @@ test("only a negative numeric delta is a regression", () => {
   assert.equal(isRegression(5), false);
   assert.equal(isRegression(null), false);
   assert.equal(isRegression(undefined), false);
+});
+
+// ── Parser-fidelity benchmark on the FROZEN real-report corpus ─────────────
+// Deterministic regression guard: the shipped parser must reproduce the
+// independently-graded finding inventory of 30 real model-generated reports.
+// This is the non-circular counterpart to the synthetic SAMPLE_REPORT tests
+// above — the reports here are real model output, the truth was graded by a
+// separate pass and spot-checked by hand. See scripts/benchmark.mjs.
+
+console.log("\nparser-fidelity benchmark (frozen real-report corpus)");
+
+const CORPUS = JSON.parse(readFileSync(path.join(__dirname, "..", "evals", "benchmark-corpus.json"), "utf8"));
+const BENCH = summarize(CORPUS);
+
+test("corpus has >= 30 real reports spanning all six modes", () => {
+  assert.ok(CORPUS.samples.length >= 30, `expected >=30 samples, got ${CORPUS.samples.length}`);
+  const modes = new Set(CORPUS.samples.map((s) => s.mode));
+  for (const m of VALID_MODES) assert.ok(modes.has(m), `corpus is missing mode ${m}`);
+});
+
+test("corpus composition matches the documented numbers (30 total, 9 false-positive)", () => {
+  // These exact counts are published in the README "Reproducible benchmarks"
+  // section — fail loudly if a corpus regen changes them without a docs update.
+  assert.equal(CORPUS.samples.length, 30);
+  assert.equal(CORPUS.samples.filter((s) => s.isFP).length, 9);
+});
+
+test("parser reproduces the graded severity counts on every report", () => {
+  const bad = BENCH.rows.filter((r) => !r.countMatch).map((r) => `${r.id}: truth ${r.truth} vs parser ${r.parser}`);
+  assert.equal(bad.length, 0, `count mismatches: ${bad.join("; ")}`);
+});
+
+test("every report emits valid SARIF 2.1.0", () => {
+  const bad = BENCH.rows.filter((r) => !r.sarifValid).map((r) => r.id);
+  assert.equal(bad.length, 0, `invalid SARIF for: ${bad.join(", ")}`);
+});
+
+test("risk-code extraction has zero false positives / negatives on the corpus", () => {
+  assert.equal(BENCH.fp, 0, `${BENCH.fp} false-positive code(s)`);
+  assert.equal(BENCH.fn, 0, `${BENCH.fn} false-negative code(s)`);
+  assert.equal(BENCH.precision, 1);
+  assert.equal(BENCH.recall, 1);
 });
 
 // ── Integration: validate-repo.mjs passes against current repo ─────────────
